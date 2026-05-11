@@ -31,6 +31,7 @@ class ChatClient(Protocol):
 
 DEFAULTS: dict[str, dict[str, str]] = {
     "query_first": {
+        "intent_reasoning": INVALID,
         "current_shopping_intent": INVALID,
         "has_new_preference": "no",
         "new_preferences": INVALID,
@@ -38,29 +39,35 @@ DEFAULTS: dict[str, dict[str, str]] = {
         "related_global_preferences": INVALID,
     },
     "query_followup": {
+        "intent_reasoning": INVALID,
         "current_shopping_intent": INVALID,
         "has_new_preference": "no",
         "new_preferences": INVALID,
     },
     "intent_integration": {
+        "reasoning": IRRELEVANT,
         "is_related_to_memory": "no",
         "related_memory_intents": IRRELEVANT,
         "integrated_intent": IRRELEVANT,
     },
     "intent_reflection": {
+        "reasoning": IRRELEVANT,
         "has_invalid_information": "no",
         "is_irrelevant_to_current_query": "no",
         "refined_intent": IRRELEVANT,
     },
     "memory_preferences": {
+        "reasoning": INVALID,
         "has_related_memory_preferences": "no",
         "related_memory_preferences": INVALID,
     },
     "global_preferences": {
+        "reasoning": INVALID,
         "has_related_global_preferences": "no",
         "related_global_preferences": INVALID,
     },
     "profile_rewrite": {
+        "reasoning": INVALID,
         "rewritten_profile": INVALID,
     },
 }
@@ -174,6 +181,7 @@ class MemoryAwareProfileRewriter:
             "intent_reflection": intent_reflection,
             "memory_preference_reasoning": memory_preference_reasoning,
             "global_preference_reasoning": global_preference_reasoning,
+            "profile_rewrite_reasoning": profile_rewrite.get("reasoning", INVALID),
             "rewritten_profile": profile_rewrite.get("rewritten_profile", INVALID),
             "memory": self.memory_store.snapshot(),
         }
