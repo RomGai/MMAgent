@@ -12,6 +12,7 @@ from prompts import (
     GLOBAL_PREFERENCE_REASONING_PROMPT,
     INTENT_INTEGRATION_PROMPT,
     INTENT_REFLECTION_PROMPT,
+    MEMORY_PREFERENCE_DECISION_PROMPT,
     MEMORY_PREFERENCE_REASONING_PROMPT,
     PROFILE_REFLECTION_PROMPT,
     PROFILE_REWRITE_PROMPT,
@@ -56,6 +57,9 @@ DEFAULTS: dict[str, dict[str, str]] = {
         "has_invalid_information": "no",
         "is_irrelevant_to_current_query": "no",
         "refined_intent": IRRELEVANT,
+    },
+    "memory_preference_reasoning": {
+        "reasoning": INVALID,
     },
     "memory_preferences": {
         "reasoning": INVALID,
@@ -260,7 +264,7 @@ class MemoryAwareProfileRewriter:
             }
             for item in previous_memory
         ]
-        prompt = render_prompt(
+        reasoning_prompt = render_prompt(
             MEMORY_PREFERENCE_REASONING_PROMPT,
             query=query,
             used_intent=used_intent,
@@ -268,7 +272,19 @@ class MemoryAwareProfileRewriter:
                 previous_preferences, ensure_ascii=False, indent=2
             ),
         )
-        return self._chat_json(prompt, DEFAULTS["memory_preferences"])
+        first_stage = self._chat_json(
+            reasoning_prompt, DEFAULTS["memory_preference_reasoning"]
+        )
+        decision_prompt = render_prompt(
+            MEMORY_PREFERENCE_DECISION_PROMPT,
+            query=query,
+            used_intent=used_intent,
+            previous_memory_preferences=json.dumps(
+                previous_preferences, ensure_ascii=False, indent=2
+            ),
+            memory_preference_reasoning=first_stage.get("reasoning", INVALID),
+        )
+        return self._chat_json(decision_prompt, DEFAULTS["memory_preferences"])
 
     def _global_preference_reasoning(self, query: str, used_intent: str) -> dict[str, str]:
         prompt = render_prompt(

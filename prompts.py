@@ -121,19 +121,43 @@ e. reasoning 字段需要显式说明反思判断过程，包括整合后的意�
 MEMORY_PREFERENCE_REASONING_PROMPT = """
 {common_requirements}
 
-### LLM基于Memory的偏好推理 ###
+### LLM基于Memory的偏好推理：第一阶段 ###
 输入：
 - 当前 query：{query}
 - 用户当下购物意图：{used_intent}
 - 当前轮之前 session memory 中的新引入偏好：{previous_memory_preferences}
 
 任务：
-a. 判断 memory 中保存的之前新引入偏好，是否有与当前购物意图直接相关或可合理迁移的信息。相关性不只看商品品类是否相同，也要看是否属于同一消费场景、互补/相邻品类、同一品牌生态或共享约束。
-b. 对品牌、系列、生态、预算档位、风格、适用人群、使用场景等相对稳定的偏好，可以作为当前购物意图的相关历史偏好；若只是从历史相关品类迁移而非当前 query 明说，需说明这是“可能倾向”。
-c. 例如：历史偏好“海尔品牌洗衣机”，当前购物意图“购买烘干机”，应输出与当前洗护场景相关的历史偏好：用户此前明确偏好海尔品牌，因此当前烘干机可能也倾向海尔或与海尔洗衣机搭配。
-d. 不要输出只适用于历史商品且无法迁移到当前商品的属性。
-e. reasoning 字段需要显式说明 memory 偏好相关性判断过程，包括哪些历史偏好与当前购物意图直接相关、哪些偏好可合理迁移、哪些信息不可迁移以及原因。
-f. 若没有，related_memory_preferences 输出 INVALID，并在 reasoning 中说明原因。
+a. 只进行语义推理，不要在本阶段输出 yes/no，也不要输出 related_memory_preferences 或 INVALID 结论。
+b. 分析 memory 中保存的之前新引入偏好，是否可能有与当前购物意图直接相关或可合理迁移的信息。相关性不只看商品品类是否相同，也要看是否属于同一消费场景、互补/相邻品类、同一品牌生态或共享约束。
+c. 对品牌、系列、生态、预算档位、风格、适用人群、使用场景等相对稳定的偏好，分析其是否可能作为当前购物意图的相关历史偏好；若只是从历史相关品类迁移而非当前 query 明说，需说明这是“可能倾向”。
+d. 分析哪些信息只适用于历史商品且无法迁移到当前商品，以及原因。
+e. 输入中的 INVALID 只表示对应轮次未抽取到明确新偏好，不要把 INVALID 本身当作历史偏好，也不要因为看到 INVALID 就提前得出最终无相关偏好的结论；最终是否输出 INVALID 由第二阶段基于本阶段 reasoning 决定。
+f. reasoning 字段需要完整记录上述分析过程，尤其是候选可迁移偏好、不可迁移信息和不确定性。
+
+输出 JSON schema：
+{{
+  "reasoning": "..."
+}}
+""".strip()
+
+MEMORY_PREFERENCE_DECISION_PROMPT = """
+{common_requirements}
+
+### LLM基于Memory的偏好推理：第二阶段 ###
+输入：
+- 当前 query：{query}
+- 用户当下购物意图：{used_intent}
+- 当前轮之前 session memory 中的新引入偏好：{previous_memory_preferences}
+- 第一阶段 memory 偏好推理 reasoning：{memory_preference_reasoning}
+
+任务：
+a. 以第一阶段 reasoning 为主要依据，并参考原始 previous_memory_preferences 防止上下文丢失，归纳判断是否存在与当前购物意图直接相关或可合理迁移的历史偏好。
+b. 参考 previous_memory_preferences 时，只用于核对第一阶段 reasoning 涉及的历史偏好来源和上下文，不要绕过第一阶段 reasoning 重新做完全独立判断。
+c. 输入中的 INVALID 只表示对应轮次未抽取到明确新偏好，不要把 INVALID 本身当作历史偏好。
+d. 若存在相关或可迁移历史偏好，则 has_related_memory_preferences 输出 yes，并在 related_memory_preferences 中输出具体相关或可迁移的历史偏好；若只是迁移推断而非当前 query 明说，需说明这是“可能倾向”。
+e. 若不存在，则 has_related_memory_preferences 输出 no，related_memory_preferences 输出 INVALID。
+f. reasoning 字段需要简洁说明从第一阶段 reasoning 和 previous_memory_preferences 到最终 yes/no 和 related_memory_preferences/INVALID 的归纳依据。
 
 输出 JSON schema：
 {{
