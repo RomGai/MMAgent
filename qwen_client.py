@@ -16,7 +16,7 @@ class QwenGenerationConfig:
     """Generation options for Qwen3-8B."""
 
     model_name: str = "Qwen/Qwen3-8B"
-    max_new_tokens: int = 4096
+    max_new_tokens: int = 32768
     temperature: float | None = 0.2
     top_p: float | None = 0.9
     do_sample: bool = False

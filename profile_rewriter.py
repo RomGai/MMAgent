@@ -12,7 +12,9 @@ from prompts import (
     GLOBAL_PREFERENCE_REASONING_PROMPT,
     INTENT_INTEGRATION_PROMPT,
     INTENT_REFLECTION_PROMPT,
+    MEMORY_PREFERENCE_DECISION_PROMPT,
     MEMORY_PREFERENCE_REASONING_PROMPT,
+    PROFILE_REFLECTION_PROMPT,
     PROFILE_REWRITE_PROMPT,
     QUERY_ANALYSIS_FIRST_TURN_PROMPT,
     QUERY_ANALYSIS_FOLLOWUP_TURN_PROMPT,
@@ -31,6 +33,7 @@ class ChatClient(Protocol):
 
 DEFAULTS: dict[str, dict[str, str]] = {
     "query_first": {
+        "intent_reasoning": INVALID,
         "current_shopping_intent": INVALID,
         "has_new_preference": "no",
         "new_preferences": INVALID,
@@ -38,30 +41,44 @@ DEFAULTS: dict[str, dict[str, str]] = {
         "related_global_preferences": INVALID,
     },
     "query_followup": {
+        "intent_reasoning": INVALID,
         "current_shopping_intent": INVALID,
         "has_new_preference": "no",
         "new_preferences": INVALID,
     },
     "intent_integration": {
+        "reasoning": IRRELEVANT,
         "is_related_to_memory": "no",
         "related_memory_intents": IRRELEVANT,
         "integrated_intent": IRRELEVANT,
     },
     "intent_reflection": {
+        "reasoning": IRRELEVANT,
         "has_invalid_information": "no",
         "is_irrelevant_to_current_query": "no",
         "refined_intent": IRRELEVANT,
     },
+    "memory_preference_reasoning": {
+        "reasoning": INVALID,
+    },
     "memory_preferences": {
+        "reasoning": INVALID,
         "has_related_memory_preferences": "no",
         "related_memory_preferences": INVALID,
     },
     "global_preferences": {
+        "reasoning": INVALID,
         "has_related_global_preferences": "no",
         "related_global_preferences": INVALID,
     },
     "profile_rewrite": {
+        "reasoning": INVALID,
         "rewritten_profile": INVALID,
+    },
+    "profile_reflection": {
+        "reasoning": INVALID,
+        "needs_adjustment": "no",
+        "adjusted_profile": INVALID,
     },
 }
 
@@ -156,15 +173,33 @@ class MemoryAwareProfileRewriter:
         else:
             global_preference_reasoning = self._global_preference_reasoning(query, used_intent)
 
+        related_global_preferences = global_preference_reasoning.get(
+            "related_global_preferences", INVALID
+        )
         profile_rewrite = self._profile_rewrite(
             query=query,
             used_intent=used_intent,
             new_preferences=new_preferences,
             related_memory_preferences=related_memory_preferences,
-            related_global_preferences=global_preference_reasoning.get(
-                "related_global_preferences", INVALID
-            ),
+            related_global_preferences=related_global_preferences,
         )
+        initial_rewritten_profile = profile_rewrite.get("rewritten_profile", INVALID)
+        profile_reflection = self._profile_reflection(
+            query=query,
+            used_intent=used_intent,
+            new_preferences=new_preferences,
+            related_memory_preferences=related_memory_preferences,
+            related_global_preferences=related_global_preferences,
+            rewritten_profile=initial_rewritten_profile,
+        )
+        adjusted_profile = profile_reflection.get("adjusted_profile", INVALID)
+        if (
+            profile_reflection.get("needs_adjustment", "no").strip().lower() == "yes"
+            and self._is_effective_text(adjusted_profile, invalid_value=INVALID)
+        ):
+            final_rewritten_profile = adjusted_profile
+        else:
+            final_rewritten_profile = initial_rewritten_profile
 
         return {
             "turn_id": len(self.memory_store),
@@ -174,7 +209,10 @@ class MemoryAwareProfileRewriter:
             "intent_reflection": intent_reflection,
             "memory_preference_reasoning": memory_preference_reasoning,
             "global_preference_reasoning": global_preference_reasoning,
-            "rewritten_profile": profile_rewrite.get("rewritten_profile", INVALID),
+            "profile_rewrite_reasoning": profile_rewrite.get("reasoning", INVALID),
+            "initial_rewritten_profile": initial_rewritten_profile,
+            "profile_rewrite_reflection": profile_reflection,
+            "rewritten_profile": final_rewritten_profile,
             "memory": self.memory_store.snapshot(),
         }
 
@@ -227,7 +265,7 @@ class MemoryAwareProfileRewriter:
             }
             for item in previous_memory
         ]
-        prompt = render_prompt(
+        reasoning_prompt = render_prompt(
             MEMORY_PREFERENCE_REASONING_PROMPT,
             query=query,
             used_intent=used_intent,
@@ -235,7 +273,19 @@ class MemoryAwareProfileRewriter:
                 previous_preferences, ensure_ascii=False, indent=2
             ),
         )
-        return self._chat_json(prompt, DEFAULTS["memory_preferences"])
+        first_stage = self._chat_json(
+            reasoning_prompt, DEFAULTS["memory_preference_reasoning"]
+        )
+        decision_prompt = render_prompt(
+            MEMORY_PREFERENCE_DECISION_PROMPT,
+            query=query,
+            used_intent=used_intent,
+            previous_memory_preferences=json.dumps(
+                previous_preferences, ensure_ascii=False, indent=2
+            ),
+            memory_preference_reasoning=first_stage.get("reasoning", INVALID),
+        )
+        return self._chat_json(decision_prompt, DEFAULTS["memory_preferences"])
 
     def _global_preference_reasoning(self, query: str, used_intent: str) -> dict[str, str]:
         prompt = render_prompt(
@@ -263,6 +313,26 @@ class MemoryAwareProfileRewriter:
             related_global_preferences=related_global_preferences,
         )
         return self._chat_json(prompt, DEFAULTS["profile_rewrite"])
+
+    def _profile_reflection(
+        self,
+        query: str,
+        used_intent: str,
+        new_preferences: str,
+        related_memory_preferences: str,
+        related_global_preferences: str,
+        rewritten_profile: str,
+    ) -> dict[str, str]:
+        prompt = render_prompt(
+            PROFILE_REFLECTION_PROMPT,
+            query=query,
+            used_intent=used_intent,
+            new_preferences=new_preferences,
+            related_memory_preferences=related_memory_preferences,
+            related_global_preferences=related_global_preferences,
+            rewritten_profile=rewritten_profile,
+        )
+        return self._chat_json(prompt, DEFAULTS["profile_reflection"])
 
     @staticmethod
     def _is_effective_text(value: str | None, invalid_value: str) -> bool:
