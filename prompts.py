@@ -199,6 +199,35 @@ PROFILE_REWRITE_PROMPT = """
 """.strip()
 
 
+PROFILE_REFLECTION_PROMPT = """
+{common_requirements}
+
+### 对LLM profile 重写的reflection ###
+输入：
+- 当前 query：{query}
+- 用户当下购物意图：{used_intent}
+- query 新引入的偏好：{new_preferences}
+- 当前交互 memory 中相关的历史偏好：{related_memory_preferences}
+- 全局用户画像中相关的历史偏好：{related_global_preferences}
+- LLM 初次重写的 profile：{rewritten_profile}
+
+任务：
+a. 判断初次重写的 profile 是否合理、合适，是否只包含与当前 query 推荐相关的信息。
+b. 重点检查是否混入了无关、过时、冲突、不恰当过度泛化、无法迁移或对当前推荐无帮助的信息；允许保留对当前推荐有帮助的合理泛化信息。
+c. 如果初次重写的 profile 包含不相关或不合适的信息，需要调整，则 needs_adjustment 输出 yes，并在 adjusted_profile 中输出调整后的最终 profile。
+d. 如果初次重写的 profile 已经合理合适，不需要调整，则 needs_adjustment 输出 no，adjusted_profile 输出 INVALID，最终直接使用初次重写的 profile。
+e. adjusted_profile 应保留当前 query 的主要购物意图和所有相关偏好，删除不相关信息，并保持自然语言表达完整准确。
+f. reasoning 字段需要显式说明判断过程，包括哪些信息合理保留、哪些信息不相关或不合适、是否需要调整以及原因。
+
+输出 JSON schema：
+{{
+  "reasoning": "...",
+  "needs_adjustment": "yes/no",
+  "adjusted_profile": "... or INVALID"
+}}
+""".strip()
+
+
 def render_prompt(template: str, **kwargs: object) -> str:
     """Render a prompt with shared requirements injected."""
 
