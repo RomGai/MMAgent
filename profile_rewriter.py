@@ -61,6 +61,7 @@ DEFAULTS: dict[str, dict[str, str]] = {
         "related_global_preferences": INVALID,
     },
     "profile_rewrite": {
+        "reasoning": INVALID,
         "rewritten_profile": INVALID,
     },
 }
@@ -174,6 +175,7 @@ class MemoryAwareProfileRewriter:
             "intent_reflection": intent_reflection,
             "memory_preference_reasoning": memory_preference_reasoning,
             "global_preference_reasoning": global_preference_reasoning,
+            "profile_rewrite_reasoning": profile_rewrite.get("reasoning", INVALID),
             "rewritten_profile": profile_rewrite.get("rewritten_profile", INVALID),
             "memory": self.memory_store.snapshot(),
         }
