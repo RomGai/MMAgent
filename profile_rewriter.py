@@ -210,6 +210,7 @@ class MemoryAwareProfileRewriter:
             "memory_preference_reasoning": memory_preference_reasoning,
             "global_preference_reasoning": global_preference_reasoning,
             "profile_rewrite_reasoning": profile_rewrite.get("reasoning", INVALID),
+            "initial_rewritten_profile": initial_rewritten_profile,
             "profile_rewrite_reflection": profile_reflection,
             "rewritten_profile": final_rewritten_profile,
             "memory": self.memory_store.snapshot(),

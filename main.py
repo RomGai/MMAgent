@@ -35,6 +35,8 @@ def parse_args() -> argparse.Namespace:
 def print_result(result: dict) -> None:
     print("\n========== 当前轮结构化结果 ==========")
     print(json.dumps(result, ensure_ascii=False, indent=2))
+    print("\n========== 初次 rewritten profile ==========")
+    print(result.get("initial_rewritten_profile", "INVALID"))
     print("\n========== 最终 rewritten profile ==========")
     print(result.get("rewritten_profile", "INVALID"))
     print("==========================================\n")
